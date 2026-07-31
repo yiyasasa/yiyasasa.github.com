@@ -33,8 +33,14 @@ jobs:
       id: normalize-db
       run: |
         DB_PATH="$(realpath -m "$GIT_FIT_DATABASE_PATH")"
+        DB_DIR="$(dirname "$DB_PATH")"
+        case "$DB_DIR" in
+          "$GITHUB_WORKSPACE"/*) REL_DIR="${DB_DIR#"$GITHUB_WORKSPACE"/}" ;;
+          "$GITHUB_WORKSPACE")   REL_DIR="." ;;
+          *)                     REL_DIR="$DB_DIR" ;;
+        esac
         echo "db-path=$DB_PATH" >> "$GITHUB_OUTPUT"
-        echo "db-dir=$(dirname "$DB_PATH")" >> "$GITHUB_OUTPUT"
+        echo "db-dir=$REL_DIR" >> "$GITHUB_OUTPUT"
     - name: Restore cached database
       uses: actions/cache/restore@v4
       with:
