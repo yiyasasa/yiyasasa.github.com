@@ -39,6 +39,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
+    - run: bundle init && bundle add git-fit
     - name: Run sync
       run: bundle exec git fit sync
       env:
