@@ -11,7 +11,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  GIT_FIT_DATABASE_PATH: ${{ vars.GIT_FIT_DATABASE_PATH || 'data/db/git-fit.db' }}
 
 jobs:
   sync:
@@ -20,6 +23,9 @@ jobs:
     strategy:
       matrix:
         ruby-version: ['3.4']
+
+    env:
+      GIT_FIT_SYNC_TIME_BUDGET: ${{ vars.GIT_FIT_SYNC_TIME_BUDGET || '300' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -30,3 +36,6 @@ jobs:
         bundler-cache: true
     - name: Run sync
       run: bundle exec git fit sync
+      env:
+        GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
+        GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
