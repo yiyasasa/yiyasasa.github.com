@@ -48,6 +48,15 @@ jobs:
         key: git-fit-db-v0-cold
         restore-keys: |
           git-fit-db-v0-
+    - name: '[keep] Restore from cache'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          data/raw/keep
+          data/std/keep
+        key: git-fit-data-v0-keep-cold
+        restore-keys: |
+          git-fit-data-v0-keep-
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -59,6 +68,20 @@ jobs:
       env:
         GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
+    - name: '[keep] Generate SHA256SUMS'
+      run: |
+        for dir in data/raw/keep data/std/keep; do
+          if [ -d "$dir" ]; then
+            (cd "$dir" && find . -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          fi
+        done
+    - name: '[keep] Save to cache'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          data/raw/keep
+          data/std/keep
+        key: git-fit-data-v0-keep-${{ github.run_number }}-${{ github.run_id }}
     - name: Save cached database
       uses: actions/cache/save@v4
       with:
