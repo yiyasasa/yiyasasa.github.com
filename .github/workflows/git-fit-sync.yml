@@ -29,11 +29,19 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Cache git-fit database
-      uses: actions/cache@v4
+    - name: Normalize database paths
+      id: normalize-db
+      run: |
+        DB_PATH="$(realpath -m "$GIT_FIT_DATABASE_PATH")"
+        echo "db-path=$DB_PATH" >> "$GITHUB_OUTPUT"
+        echo "db-dir=$(dirname "$DB_PATH")" >> "$GITHUB_OUTPUT"
+    - name: Restore cached database
+      uses: actions/cache/restore@v4
       with:
-        path: data/db
-        key: git-fit-db
+        path: ${{ steps.normalize-db.outputs.db-dir }}
+        key: git-fit-db-v0-cold
+        restore-keys: |
+          git-fit-db-v0-
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -41,7 +49,12 @@ jobs:
         bundler-cache: true
     - run: bundle init && bundle add git-fit
     - name: Run sync
-      run: bundle exec git fit sync
+      run: bundle exec git fit sync --checkpoint
       env:
         GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
+    - name: Save cached database
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.normalize-db.outputs.db-dir }}
+        key: git-fit-db-v0-${{ github.run_id }}
