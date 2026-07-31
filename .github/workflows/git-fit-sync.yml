@@ -29,6 +29,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Cache git-fit database
+      uses: actions/cache@v4
+      with:
+        path: data/db
+        key: git-fit-db
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
