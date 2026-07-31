@@ -1,0 +1,39 @@
+# git-fit 数据层（L1-L3）
+data/raw/
+data/std/
+data/db/
+site/
+config/
+
+# 本地环境变量
+.env
+.env.*
+.env.local
+
+# Ruby
+vendor/bundle
+*.gem
+*.rbc
+/.bundle/
+/log/
+/tmp/
+
+# AI coding tools
+.opencode/
+.claude/
+.codex/
+.aider/
+.cursor/
+.windsurf/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
