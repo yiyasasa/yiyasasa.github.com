@@ -68,6 +68,30 @@ jobs:
       env:
         GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
+    - name: '[keep] Check for changes'
+      id: keep-changes
+      run: |
+        CHANGED=false
+        for dir in data/raw/keep data/std/keep; do
+          if [ ! -d "$dir" ]; then
+            echo "absent: $dir (nothing to save)"
+            continue
+          fi
+          fresh="$(cd "$dir" && find . -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum)"
+          if [ -f "$dir/SHA256SUMS" ]; then
+            baseline="$(cat "$dir/SHA256SUMS")"
+            if (cd "$dir" && sha256sum --check --quiet SHA256SUMS >/dev/null 2>&1) && [ "$baseline" = "$fresh" ]; then
+              echo "unchanged: $dir"
+            else
+              echo "changed: $dir"
+              CHANGED=true
+            fi
+          else
+            echo "no baseline: $dir"
+            CHANGED=true
+          fi
+        done
+        echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
     - name: '[keep] Generate SHA256SUMS'
       run: |
         for dir in data/raw/keep data/std/keep; do
@@ -76,6 +100,7 @@ jobs:
           fi
         done
     - name: '[keep] Save to cache'
+      if: steps.keep-changes.outputs.changed == 'true'
       uses: actions/cache/save@v4
       with:
         path: |
