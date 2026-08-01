@@ -20,9 +20,6 @@ jobs:
   sync:
 
     runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
-    strategy:
-      matrix:
-        ruby-version: ['3.4']
 
     env:
       GIT_FIT_SYNC_TIME_BUDGET: ${{ vars.GIT_FIT_SYNC_TIME_BUDGET || '300' }}
@@ -57,10 +54,18 @@ jobs:
         key: git-fit-data-v0-keep-cold
         restore-keys: |
           git-fit-data-v0-keep-
+    - name: '[db] Baseline SHA256SUMS'
+      run: |
+        DIR="${{ steps.normalize-db.outputs.db-dir }}"
+        if [ -d "$DIR" ]; then
+          (cd "$DIR" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/db-before.SHA256SUMS")
+        else
+          : > "$RUNNER_TEMP/db-before.SHA256SUMS"
+        fi
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: ${{ matrix.ruby-version }}
+        ruby-version: ${{ vars.RUBY_VERSION || '3.4' }}
         bundler-cache: true
     - run: bundle init && bundle add git-fit
     - name: Run sync
@@ -68,6 +73,33 @@ jobs:
       env:
         GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
+    - name: '[db] Check for changes'
+      id: db-changes
+      run: |
+        CHANGED=false
+        DIR="${{ steps.normalize-db.outputs.db-dir }}"
+        if [ -d "$DIR" ]; then
+          (cd "$DIR" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/db-after.SHA256SUMS")
+          if [ -f "$RUNNER_TEMP/db-before.SHA256SUMS" ] && diff -q \
+               "$RUNNER_TEMP/db-before.SHA256SUMS" "$RUNNER_TEMP/db-after.SHA256SUMS" >/dev/null 2>&1; then
+            echo "unchanged: db"
+          else
+            echo "changed: db"
+            CHANGED=true
+          fi
+        else
+          echo "absent: db"
+          CHANGED=true
+        fi
+        echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+    - name: '[db] Upload artifact'
+      if: steps.db-changes.outputs.changed == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: git-fit-db
+        path: ${{ steps.normalize-db.outputs.db-dir }}
+        retention-days: 1
+        if-no-files-found: error
     - name: '[keep] Check for changes'
       id: keep-changes
       run: |

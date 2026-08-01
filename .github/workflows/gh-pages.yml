@@ -1,0 +1,77 @@
+name: GitFit Pages
+
+on:
+  workflow_run:
+    workflows: [GitFit Sync]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GIT_FIT_DATABASE_PATH: data/db/git-fit.db
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Trigger source
+        run: |
+          echo "Upstream: [GitFit Sync run #${{ github.event.workflow_run.run_number }}](${{ github.event.workflow_run.html_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Upstream run id: ${{ github.event.workflow_run.id }}"
+          echo "Upstream URL: ${{ github.event.workflow_run.html_url }}"
+      - name: Check sync artifact exists
+        id: check-artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ID=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
+            --jq '.artifacts[] | select(.name=="git-fit-db") | .id' | head -1)
+          echo "exists=$([ -n "$ID" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Download DB artifact
+        if: steps.check-artifact.outputs.exists == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: git-fit-db
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: data/db
+      - name: Set up Ruby
+        if: steps.check-artifact.outputs.exists == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ vars.RUBY_VERSION || '3.4' }}
+      - name: Install git-fit
+        if: steps.check-artifact.outputs.exists == 'true'
+        run: |
+          bundle init
+          bundle add git-fit
+      - name: Export activities JSON
+        if: steps.check-artifact.outputs.exists == 'true'
+        run: |
+          mkdir -p site
+          bundle exec git fit export json -o site/activities.json
+          test -s site/activities.json
+          jq -e 'type == "array" and length > 0 and all(.[]; type == "object")' \
+            site/activities.json > /dev/null
+      - name: Upload Pages artifact
+        if: steps.check-artifact.outputs.exists == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy to GitHub Pages
+        if: steps.check-artifact.outputs.exists == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
