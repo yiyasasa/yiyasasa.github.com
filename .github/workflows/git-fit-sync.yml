@@ -25,122 +25,40 @@ jobs:
       GIT_FIT_SYNC_TIME_BUDGET: ${{ vars.GIT_FIT_SYNC_TIME_BUDGET || '300' }}
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Normalize database paths
-      id: normalize-db
-      run: |
-        DB_PATH="$(realpath -m "$GIT_FIT_DATABASE_PATH")"
-        DB_DIR="$(dirname "$DB_PATH")"
-        case "$DB_DIR" in
-          "$GITHUB_WORKSPACE"/*) REL_DIR="${DB_DIR#"$GITHUB_WORKSPACE"/}" ;;
-          "$GITHUB_WORKSPACE")   REL_DIR="." ;;
-          *)                     REL_DIR="$DB_DIR" ;;
-        esac
-        echo "db-path=$DB_PATH" >> "$GITHUB_OUTPUT"
-        echo "db-dir=$REL_DIR" >> "$GITHUB_OUTPUT"
-    - name: Restore cached database
-      uses: actions/cache/restore@v4
+    - name: '[db] Restore database'
+      id: db-restore
+      uses: git-fit-actions/db-store/cache/restore@v1
       with:
-        path: ${{ steps.normalize-db.outputs.db-dir }}
-        key: git-fit-db-v0-cold
-        restore-keys: |
-          git-fit-db-v0-
+        database-path: ${{ env.GIT_FIT_DATABASE_PATH }}
     - name: '[keep] Restore from cache'
-      uses: actions/cache/restore@v4
+      uses: git-fit-actions/data-store/cache/restore@v1
       with:
-        path: |
-          data/raw/keep
-          data/std/keep
-        key: git-fit-data-v0-keep-cold
-        restore-keys: |
-          git-fit-data-v0-keep-
-    - name: '[db] Baseline SHA256SUMS'
-      run: |
-        DIR="${{ steps.normalize-db.outputs.db-dir }}"
-        if [ -d "$DIR" ]; then
-          (cd "$DIR" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/db-before.SHA256SUMS")
-        else
-          : > "$RUNNER_TEMP/db-before.SHA256SUMS"
-        fi
-    - name: Set up Ruby
+        source: keep
+    - name: '[ruby] Set up Ruby'
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ vars.RUBY_VERSION || '3.4' }}
         bundler-cache: true
-    - run: bundle init && bundle add git-fit
-    - name: Run sync
+    - run: bundle init && bundle add git-fit --quiet
+    - name: '[git-fit] Run sync'
       run: bundle exec git fit sync --checkpoint
       env:
         GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
-    - name: '[db] Check for changes'
-      id: db-changes
-      run: |
-        CHANGED=false
-        DIR="${{ steps.normalize-db.outputs.db-dir }}"
-        if [ -d "$DIR" ]; then
-          (cd "$DIR" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/db-after.SHA256SUMS")
-          if [ -f "$RUNNER_TEMP/db-before.SHA256SUMS" ] && diff -q \
-               "$RUNNER_TEMP/db-before.SHA256SUMS" "$RUNNER_TEMP/db-after.SHA256SUMS" >/dev/null 2>&1; then
-            echo "unchanged: db"
-          else
-            echo "changed: db"
-            CHANGED=true
-          fi
-        else
-          echo "absent: db"
-          CHANGED=true
-        fi
-        echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+    - name: '[db] Save database'
+      id: db-save
+      uses: git-fit-actions/db-store/cache/save@v1
+      with:
+        database-path: ${{ env.GIT_FIT_DATABASE_PATH }}
     - name: '[db] Upload artifact'
-      if: steps.db-changes.outputs.changed == 'true'
+      if: steps.db-save.outputs.changed == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: git-fit-db
-        path: ${{ steps.normalize-db.outputs.db-dir }}
+        path: ${{ steps.db-restore.outputs.db-dir }}
         retention-days: 1
         if-no-files-found: error
-    - name: '[keep] Check for changes'
-      id: keep-changes
-      run: |
-        CHANGED=false
-        for dir in data/raw/keep data/std/keep; do
-          if [ ! -d "$dir" ]; then
-            echo "absent: $dir (nothing to save)"
-            continue
-          fi
-          fresh="$(cd "$dir" && find . -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum)"
-          if [ -f "$dir/SHA256SUMS" ]; then
-            baseline="$(cat "$dir/SHA256SUMS")"
-            if (cd "$dir" && sha256sum --check --quiet SHA256SUMS >/dev/null 2>&1) && [ "$baseline" = "$fresh" ]; then
-              echo "unchanged: $dir"
-            else
-              echo "changed: $dir"
-              CHANGED=true
-            fi
-          else
-            echo "no baseline: $dir"
-            CHANGED=true
-          fi
-        done
-        echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
-    - name: '[keep] Generate SHA256SUMS'
-      run: |
-        for dir in data/raw/keep data/std/keep; do
-          if [ -d "$dir" ]; then
-            (cd "$dir" && find . -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
-          fi
-        done
-    - name: '[keep] Save to cache'
-      if: steps.keep-changes.outputs.changed == 'true'
-      uses: actions/cache/save@v4
+    - name: '[keep] Sync keep data'
+      uses: git-fit-actions/data-store/cache/save@v1
       with:
-        path: |
-          data/raw/keep
-          data/std/keep
-        key: git-fit-data-v0-keep-${{ github.run_number }}-${{ github.run_id }}
-    - name: Save cached database
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ steps.normalize-db.outputs.db-dir }}
-        key: git-fit-db-v0-${{ github.run_id }}
+        source: keep
