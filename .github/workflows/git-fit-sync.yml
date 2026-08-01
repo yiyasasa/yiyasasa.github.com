@@ -65,10 +65,22 @@ jobs:
         retention-days: 1
         if-no-files-found: error
     - name: '[keep] Sync keep data'
+      id: keep-save
       uses: git-fit-actions/data-store/cache/save@v1
       with:
         source: keep
     - name: '[igpsport] Sync igpsport data'
+      id: igpsport-save
       uses: git-fit-actions/data-store/cache/save@v1
       with:
         source: igpsport
+    - name: '[summary] Cache save status'
+      run: |
+        cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+        ## Data source cache save status
+
+        | Source | Changed |
+        | --- | --- |
+        | keep | ${{ steps.keep-save.outputs.changed }} |
+        | igpsport | ${{ steps.igpsport-save.outputs.changed }} |
+        EOF
