@@ -38,6 +38,10 @@ jobs:
       uses: git-fit-actions/data-store/cache/restore@v1
       with:
         source: igpsport
+    - name: '[xingzhe] Restore from cache'
+      uses: git-fit-actions/data-store/cache/restore@v1
+      with:
+        source: xingzhe
     - name: '[ruby] Set up Ruby'
       uses: ruby/setup-ruby@v1
       with:
@@ -51,6 +55,8 @@ jobs:
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
         GIT_FIT_IGPSPORT_PHONE: ${{ secrets.GIT_FIT_IGPSPORT_PHONE }}
         GIT_FIT_IGPSPORT_PASSWORD: ${{ secrets.GIT_FIT_IGPSPORT_PASSWORD }}
+        GIT_FIT_XINGZHE_EMAIL: ${{ secrets.GIT_FIT_XINGZHE_EMAIL }}
+        GIT_FIT_XINGZHE_PASSWORD: ${{ secrets.GIT_FIT_XINGZHE_PASSWORD }}
     - name: '[db] Save database'
       id: db-save
       uses: git-fit-actions/db-store/cache/save@v1
@@ -74,6 +80,11 @@ jobs:
       uses: git-fit-actions/data-store/cache/save@v1
       with:
         source: igpsport
+    - name: '[xingzhe] Sync xingzhe data'
+      id: xingzhe-save
+      uses: git-fit-actions/data-store/cache/save@v1
+      with:
+        source: xingzhe
     - name: '[summary] Cache save status'
       run: |
         cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
@@ -83,4 +94,5 @@ jobs:
         | --- | --- |
         | keep | ${{ steps.keep-save.outputs.changed }} |
         | igpsport | ${{ steps.igpsport-save.outputs.changed }} |
+        | xingzhe | ${{ steps.xingzhe-save.outputs.changed }} |
         EOF
