@@ -34,6 +34,10 @@ jobs:
       uses: git-fit-actions/data-store/cache/restore@v1
       with:
         source: keep
+    - name: '[igpsport] Restore from cache'
+      uses: git-fit-actions/data-store/cache/restore@v1
+      with:
+        source: igpsport
     - name: '[ruby] Set up Ruby'
       uses: ruby/setup-ruby@v1
       with:
@@ -45,6 +49,8 @@ jobs:
       env:
         GIT_FIT_KEEP_PHONE: ${{ secrets.GIT_FIT_KEEP_PHONE }}
         GIT_FIT_KEEP_PASSWORD: ${{ secrets.GIT_FIT_KEEP_PASSWORD }}
+        GIT_FIT_IGPSPORT_PHONE: ${{ secrets.GIT_FIT_IGPSPORT_PHONE }}
+        GIT_FIT_IGPSPORT_PASSWORD: ${{ secrets.GIT_FIT_IGPSPORT_PASSWORD }}
     - name: '[db] Save database'
       id: db-save
       uses: git-fit-actions/db-store/cache/save@v1
@@ -62,3 +68,7 @@ jobs:
       uses: git-fit-actions/data-store/cache/save@v1
       with:
         source: keep
+    - name: '[igpsport] Sync igpsport data'
+      uses: git-fit-actions/data-store/cache/save@v1
+      with:
+        source: igpsport
